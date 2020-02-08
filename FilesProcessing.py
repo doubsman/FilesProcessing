@@ -2,9 +2,9 @@
 # coding: utf-8
 
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import QObject, qDebug, QDateTime
-from os import walk, rename, path, mkdir, remove, rmdir, startfile
-from sys import argv
+from PyQt5.QtCore import QObject, qDebug, QDateTime, QProcess
+from os import walk, rename, path, mkdir, remove, rmdir, startfile, listdir
+from sys import argv,platform
 from codecs import open
 
 
@@ -15,56 +15,54 @@ class FilesProcessing(QObject):
 		"""Init."""
 		super(FilesProcessing, self).__init__(parent)
 		self.parent = parent
+		self.blacklist = ['desktop.ini', 'Thumbs.db']
+		self.listfolders = None
+		self.listfiles = None
+		self.sizefoler = None
 
-	def folder_list_files(self, Cpath, masks=None, nosub=True, exact=None):
+	def folder_list_files(self, Cpath, boolsubfolders=True, masks=None, exact=None):
 		"""Build files list."""
-		blacklist = ['desktop.ini', 'Thumbs.db']
+		self.listfiles = []
 		for folderName, subfolders, filenames in walk(Cpath):
-			if subfolders and nosub:
+			if subfolders and subfolders:
 				for subfolder in subfolders:
-					self.folder_list_files(subfolder, masks, exact)
+					self.folder_list_files(subfolder, boolsubfolders, masks, exact)
 			for filename in filenames:
 				if masks is None:
 					# no mask
-					if filename not in blacklist:
-						yield path.join(folderName, filename)
+					if filename not in self.blacklist:
+						self.listfiles.append(path.join(folderName, filename))
 				else:
 					# same
 					if exact:
 						if filename.lower() in masks:
-							if filename not in blacklist:
-									yield path.join(folderName, filename)
+							if filename not in self.blacklist:
+									self.listfiles.append(path.join(folderName, filename))
 					else:
-						# mask joker
+						# mask joker *.
 						for xmask in masks:
 							if filename[-len(xmask):].lower() in xmask:
-								if filename not in blacklist:
-									yield path.join(folderName, filename)
+								if filename not in self.blacklist:
+									self.listfiles.append(path.join(folderName, filename))
+			if not boolsubfolders:
+				break
+		return self.listfiles
 
 	def folder_list_folders(self, Cpath):
 		"""Build folders list."""
-		return [d for d in listdir(Cpath) if path.isdir(path.join(Cpath, d))]
+		self.listfolders = [d for d in listdir(Cpath) if path.isdir(path.join(Cpath, d))]
+		return self.listfolders
 
-	def folder_size(self, Cpath):
+	def folder_size(self, Cpath,  boolsubfolders=True):
 		"""Calcul folder size."""
 		total_size = path.getsize(Cpath)
-		for item in listdir(folder):
+		for item in listdir(Cpath):
 			itempath = path.join(Cpath, item)
 			if path.isfile(itempath):
 				total_size += path.getsize(itempath)
-			elif path.isdir(itempath):
-				total_size += getFolderSize(itempath)
+			elif path.isdir(itempath) and boolsubfolders:
+				total_size += self.folder_size(itempath)
 		return total_size
-
-	def build_command_powershell(self, script, *argv):
-		"""Build command PowerShell."""
-		command = [r'-ExecutionPolicy', 'Unrestricted',
-					'-WindowStyle', 'Hidden',
-					'-File',
-					script]
-		for arg in argv:
-			command += (arg,)
-		return 'powershell.exe', command
 
 	def open_folder(self, Cpath):
 		"""Open File Explorer."""
@@ -75,13 +73,16 @@ class FilesProcessing(QObject):
 		elif platform == 'linux':
 			self.execute_command('xdg-open', Cpath)
 
+	def open_file(self, file):
+		"""Open programme association with file."""
+		startfile(file)
+
 	def execute_command(self, prog, *argv):
 		"""Execut a program no wait, no link."""
 		argums = []
 		for arg in argv:
 			argums += (arg,)
 		p = QProcess()
-		# print(prog, argums)
 		p.startDetached(prog, argums)
 
 	def convertUNC(self, Cpath):
@@ -91,6 +92,7 @@ class FilesProcessing(QObject):
 			Cpath = r""+Cpath.replace('\\\\', '/').replace('\\', '/')
 		return Cpath
 
+
 if __name__ == '__main__':
 	app = QApplication(argv)
 	if len(argv)>1:
@@ -98,7 +100,17 @@ if __name__ == '__main__':
 		myfolder = argv[1]
 	else:
 		# test envt
-		myfolder = "T:\\work\\Fila Brazillia NT\\\Compilations"
+		myfolder = r"D:\WorkDev\DBAlbumsTEST\TECHNO\Download"
 	# class
 	BuildProcess = FilesProcessing()
+	#listfolders = BuildProcess.folder_list_folders(myfolder)
+	#variable CLASS BuildProcess.listfolders
+	#listfiles = BuildProcess.folder_list_files(myfolder, False)
+	#variable CLASS BuildProcess.listfiles
+	#listfiles = BuildProcess.folder_list_files(myfolder)
+	#foldersize = BuildProcess.folder_size(myfolder)
+	#BuildProcess.open_folder(myfolder)
+	#BuildProcess.open_file(r'D:\WorkDev\DBAlbumsTEST\TECHNO\Download\Nouveau document RTF.nfo')
+	
+
 
